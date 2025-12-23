@@ -13,7 +13,6 @@
       height: 100vh;
     }
 
-    /* LEFT PREVIEW */
     #preview {
       width: 60%;
       overflow-y: auto;
@@ -21,7 +20,6 @@
       padding: 20px;
     }
 
-    /* RIGHT CONTROLS */
     #controls {
       width: 40%;
       padding: 20px;
@@ -36,7 +34,6 @@
       margin: 0 auto 20px;
       padding: 20mm;
       position: relative;
-      page-break-after: always;
       background-size: cover;
       background-position: center;
     }
@@ -47,79 +44,123 @@
       font-size: 42px;
     }
 
-    .month-title {
-      font-size: 28px;
-      margin-bottom: 10px;
-    }
-
-    .custom-text {
-      margin-bottom: 10px;
-      font-style: italic;
-    }
+    .month-title { font-size: 28px; margin-bottom: 10px; }
+    .custom-text { margin-bottom: 10px; font-style: italic; }
 
     .calendar {
-      font-size: 12px;
+      position: absolute;
+      bottom: 20mm;
+      left: 20mm;
+      right: 20mm;
     }
 
-    .day {
-      display: flex;
-      justify-content: space-between;
-      border-bottom: 1px solid #eee;
-      padding: 2px 0;
+    table.calendar-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .calendar-table td {
+      padding: 4px;
+      border: 1px solid #ddd;
+      text-align: right;
+    }
+
+    .calendar-table tr:first-child td {
+      font-weight: bold;
+      text-align: center;
     }
 
     .red { color: red; }
+    .muted { color: #aaa; }
 
     label { display: block; margin-top: 10px; }
 
     @media print {
+      html, body { margin: 0; padding: 0; }
       body { display: block; }
       #controls { display: none; }
       #preview { width: 100%; padding: 0; }
-      .page { margin: 0; }
+      .page { margin: 0; page-break-after: always; }
+      .page:last-child { page-break-after: auto; }
     }
   </style>
 </head>
 <body>
 
-  <!-- LEFT: PREVIEW / PRINT AREA -->
-  <div id="preview"></div>
+<div id="preview"></div>
 
-  <!-- RIGHT: CONTROLS -->
-  <div id="controls">
-    <h2>Calendar Settings</h2>
+<div id="controls">
+  <h2>Calendar Settings</h2>
+  <p><em>Supports English & German</em></p>
 
-    <label>
-      Year
-      <input type="number" id="year" value="2025" />
-    </label>
+  <label>Year <input type="number" id="year" value="2025" /></label>
 
-    <label>
-      Cover Page Title
-      <input type="text" id="coverTitle" value="My Calendar" />
-    </label>
+  <label>
+    Language
+    <select id="language">
+      <option value="en">English</option>
+      <option value="de">Deutsch</option>
+    </select>
+  </label>
 
-    <hr />
-    <h3>Per Month</h3>
-    <div id="monthControls"></div>
+  <label>
+    Country (holidays)
+    <select id="country">
+      <option value="US">United States</option>
+      <option value="DE">Germany</option>
+      <option value="AT">Austria</option>
+      <option value="FR">France</option>
+    </select>
+  </label>
 
-    <p><strong>Tip:</strong> Press <kbd>Ctrl</kbd> + <kbd>P</kbd> to generate PDF</p>
-  </div>
+  <label>Cover Page Title <input type="text" id="coverTitle" value="My Calendar" /></label>
+
+  <hr />
+  <h3>Per Month</h3>
+  <div id="monthControls"></div>
+
+  <p><strong>Tip:</strong> Press <kbd>Ctrl</kbd> + <kbd>P</kbd> to save as PDF</p>
+</div>
 
 <script>
 const preview = document.getElementById('preview');
 const monthControls = document.getElementById('monthControls');
-const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-const monthData = monthNames.map(() => ({ text: '', image: null }));
+const MONTH_NAMES = {
+  en: ['January','February','March','April','May','June','July','August','September','October','November','December'],
+  de: ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember']
+};
+
+const WEEKDAYS = {
+  en: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+  de: ['Mo','Di','Mi','Do','Fr','Sa','So']
+};
+
+let language = 'en';
+let HOLIDAYS = {};
+
+const monthData = Array.from({ length: 12 }, () => ({ text: '', image: null }));
+
+async function fetchHolidays(year, country) {
+  try {
+    const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`);
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    return data.map(h => h.date);
+  } catch {
+    return [];
+  }
+}
 
 function buildControls() {
-  monthNames.forEach((m, i) => {
+  monthControls.innerHTML = '';
+  MONTH_NAMES[language].forEach((m, i) => {
     const div = document.createElement('div');
     div.innerHTML = `
       <h4>${m}</h4>
-      <label>Text<input type="text" oninput="updateText(${i}, this.value)" /></label>
-      <label>Background Image<input type="file" accept="image/*" onchange="updateImage(${i}, this.files[0])" /></label>
+      <label>Text <input type="text" oninput="updateText(${i}, this.value)" /></label>
+      <label>Background Image <input type="file" accept="image/*" onchange="updateImage(${i}, this.files[0])" /></label>
     `;
     monthControls.appendChild(div);
   });
@@ -127,21 +168,21 @@ function buildControls() {
 
 function buildPreview() {
   preview.innerHTML = '';
-  const year = parseInt(document.getElementById('year').value);
 
-  // COVER PAGE
+  const year = +document.getElementById('year').value;
+  language = document.getElementById('language').value;
+  const country = document.getElementById('country').value;
+  const holidays = HOLIDAYS[country] || [];
+
   const cover = document.createElement('div');
   cover.className = 'page cover';
   cover.innerHTML = `<h1>${document.getElementById('coverTitle').value}</h1>`;
   preview.appendChild(cover);
 
-  // MONTH PAGES
-  monthNames.forEach((m, i) => {
+  MONTH_NAMES[language].forEach((m, i) => {
     const page = document.createElement('div');
     page.className = 'page';
-    if (monthData[i].image) {
-      page.style.backgroundImage = `url(${monthData[i].image})`;
-    }
+    if (monthData[i].image) page.style.backgroundImage = `url(${monthData[i].image})`;
 
     const title = document.createElement('div');
     title.className = 'month-title';
@@ -154,16 +195,54 @@ function buildPreview() {
     const cal = document.createElement('div');
     cal.className = 'calendar';
 
+    const table = document.createElement('table');
+    table.className = 'calendar-table';
+
+    const header = document.createElement('tr');
+    WEEKDAYS[language].forEach(d => {
+      const td = document.createElement('td');
+      td.textContent = d;
+      header.appendChild(td);
+    });
+    table.appendChild(header);
+
+    const firstDay = new Date(year, i, 1);
+    const startCol = (firstDay.getDay() + 6) % 7;
+    const prevMonthDays = new Date(year, i, 0).getDate();
+
+    let row = document.createElement('tr');
+
+    for (let c = 0; c < startCol; c++) {
+      const td = document.createElement('td');
+      td.textContent = prevMonthDays - startCol + c + 1;
+      td.className = 'muted';
+      row.appendChild(td);
+    }
+
     const daysInMonth = new Date(year, i + 1, 0).getDate();
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(year, i, d);
-      const row = document.createElement('div');
-      row.className = 'day';
-      if (date.getDay() === 0) row.classList.add('red');
-      row.innerHTML = `<span>${d}</span><span>${date.toLocaleDateString('en-US', { weekday: 'short' })}</span>`;
-      cal.appendChild(row);
+      const iso = date.toISOString().split('T')[0];
+      const td = document.createElement('td');
+      td.textContent = d;
+      if (date.getDay() === 0 || holidays.includes(iso)) td.classList.add('red');
+      row.appendChild(td);
+      if (row.children.length === 7) {
+        table.appendChild(row);
+        row = document.createElement('tr');
+      }
     }
 
+    let nextDay = 1;
+    while (row.children.length < 7) {
+      const td = document.createElement('td');
+      td.textContent = nextDay++;
+      td.className = 'muted';
+      row.appendChild(td);
+    }
+    table.appendChild(row);
+
+    cal.appendChild(table);
     page.appendChild(title);
     page.appendChild(text);
     page.appendChild(cal);
@@ -171,24 +250,31 @@ function buildPreview() {
   });
 }
 
-function updateText(i, value) {
-  monthData[i].text = value;
-  buildPreview();
+function updateText(i, v) { monthData[i].text = v; buildPreview(); }
+function updateImage(i, f) {
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = e => { monthData[i].image = e.target.result; buildPreview(); };
+  r.readAsDataURL(f);
 }
 
-function updateImage(i, file) {
-  const reader = new FileReader();
-  reader.onload = e => {
-    monthData[i].image = e.target.result;
+['year','coverTitle','country','language'].forEach(id =>
+  document.getElementById(id).addEventListener('input', async () => {
+    const year = +document.getElementById('year').value;
+    const country = document.getElementById('country').value;
+    HOLIDAYS[country] = await fetchHolidays(year, country);
+    buildControls();
     buildPreview();
-  };
-  reader.readAsDataURL(file);
-}
+  })
+);
 
-['year', 'coverTitle'].forEach(id => document.getElementById(id).addEventListener('input', buildPreview));
-
-buildControls();
-buildPreview();
+(async () => {
+  const year = +document.getElementById('year').value;
+  const country = document.getElementById('country').value;
+  HOLIDAYS[country] = await fetchHolidays(year, country);
+  buildControls();
+  buildPreview();
+})();
 </script>
 </body>
 </html>
