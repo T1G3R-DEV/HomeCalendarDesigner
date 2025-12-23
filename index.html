@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Printable Calendar Generator</title>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+    }
+
+    /* LEFT PREVIEW */
+    #preview {
+      width: 60%;
+      overflow-y: auto;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+
+    /* RIGHT CONTROLS */
+    #controls {
+      width: 40%;
+      padding: 20px;
+      border-left: 2px solid #ddd;
+      overflow-y: auto;
+    }
+
+    .page {
+      width: 210mm;
+      height: 297mm;
+      background: white;
+      margin: 0 auto 20px;
+      padding: 20mm;
+      position: relative;
+      page-break-after: always;
+      background-size: cover;
+      background-position: center;
+    }
+
+    .cover h1 {
+      text-align: center;
+      margin-top: 40%;
+      font-size: 42px;
+    }
+
+    .month-title {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .custom-text {
+      margin-bottom: 10px;
+      font-style: italic;
+    }
+
+    .calendar {
+      font-size: 12px;
+    }
+
+    .day {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #eee;
+      padding: 2px 0;
+    }
+
+    .red { color: red; }
+
+    label { display: block; margin-top: 10px; }
+
+    @media print {
+      body { display: block; }
+      #controls { display: none; }
+      #preview { width: 100%; padding: 0; }
+      .page { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- LEFT: PREVIEW / PRINT AREA -->
+  <div id="preview"></div>
+
+  <!-- RIGHT: CONTROLS -->
+  <div id="controls">
+    <h2>Calendar Settings</h2>
+
+    <label>
+      Year
+      <input type="number" id="year" value="2025" />
+    </label>
+
+    <label>
+      Cover Page Title
+      <input type="text" id="coverTitle" value="My Calendar" />
+    </label>
+
+    <hr />
+    <h3>Per Month</h3>
+    <div id="monthControls"></div>
+
+    <p><strong>Tip:</strong> Press <kbd>Ctrl</kbd> + <kbd>P</kbd> to generate PDF</p>
+  </div>
+
+<script>
+const preview = document.getElementById('preview');
+const monthControls = document.getElementById('monthControls');
+const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+const monthData = monthNames.map(() => ({ text: '', image: null }));
+
+function buildControls() {
+  monthNames.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.innerHTML = `
+      <h4>${m}</h4>
+      <label>Text<input type="text" oninput="updateText(${i}, this.value)" /></label>
+      <label>Background Image<input type="file" accept="image/*" onchange="updateImage(${i}, this.files[0])" /></label>
+    `;
+    monthControls.appendChild(div);
+  });
+}
+
+function buildPreview() {
+  preview.innerHTML = '';
+  const year = parseInt(document.getElementById('year').value);
+
+  // COVER PAGE
+  const cover = document.createElement('div');
+  cover.className = 'page cover';
+  cover.innerHTML = `<h1>${document.getElementById('coverTitle').value}</h1>`;
+  preview.appendChild(cover);
+
+  // MONTH PAGES
+  monthNames.forEach((m, i) => {
+    const page = document.createElement('div');
+    page.className = 'page';
+    if (monthData[i].image) {
+      page.style.backgroundImage = `url(${monthData[i].image})`;
+    }
+
+    const title = document.createElement('div');
+    title.className = 'month-title';
+    title.textContent = `${m} ${year}`;
+
+    const text = document.createElement('div');
+    text.className = 'custom-text';
+    text.textContent = monthData[i].text;
+
+    const cal = document.createElement('div');
+    cal.className = 'calendar';
+
+    const daysInMonth = new Date(year, i + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, i, d);
+      const row = document.createElement('div');
+      row.className = 'day';
+      if (date.getDay() === 0) row.classList.add('red');
+      row.innerHTML = `<span>${d}</span><span>${date.toLocaleDateString('en-US', { weekday: 'short' })}</span>`;
+      cal.appendChild(row);
+    }
+
+    page.appendChild(title);
+    page.appendChild(text);
+    page.appendChild(cal);
+    preview.appendChild(page);
+  });
+}
+
+function updateText(i, value) {
+  monthData[i].text = value;
+  buildPreview();
+}
+
+function updateImage(i, file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    monthData[i].image = e.target.result;
+    buildPreview();
+  };
+  reader.readAsDataURL(file);
+}
+
+['year', 'coverTitle'].forEach(id => document.getElementById(id).addEventListener('input', buildPreview));
+
+buildControls();
+buildPreview();
+</script>
+</body>
+</html>
