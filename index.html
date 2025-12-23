@@ -6,6 +6,7 @@
 
   <style>
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
@@ -28,10 +29,8 @@
     }
 
     .page {
-      width: 210mm;
-      height: 297mm;
       background: white;
-      margin: 0 auto 20px;
+      margin: 0 auto 30px;
       padding: 20mm;
       position: relative;
       background-size: cover;
@@ -44,8 +43,15 @@
       font-size: 42px;
     }
 
-    .month-title { font-size: 28px; margin-bottom: 10px; }
-    .custom-text { margin-bottom: 10px; font-style: italic; }
+    .month-title {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .custom-text {
+      margin-bottom: 10px;
+      font-style: italic;
+    }
 
     .calendar {
       position: absolute;
@@ -61,28 +67,34 @@
     }
 
     .calendar-table td {
-      padding: 4px;
-      border: 1px solid #ddd;
-      text-align: right;
+      padding: 4px 6px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
     }
 
     .calendar-table tr:first-child td {
       font-weight: bold;
-      text-align: center;
     }
 
     .red { color: red; }
-    .muted { color: #aaa; }
 
     label { display: block; margin-top: 10px; }
 
     @media print {
-      html, body { margin: 0; padding: 0; }
+      html, body {
+        margin: 0;
+        padding: 0;
+      }
       body { display: block; }
       #controls { display: none; }
       #preview { width: 100%; padding: 0; }
-      .page { margin: 0; page-break-after: always; }
-      .page:last-child { page-break-after: auto; }
+      .page {
+        margin: 0 auto;
+        page-break-after: always;
+      }
+      .page:last-child {
+        page-break-after: auto;
+      }
     }
   </style>
 </head>
@@ -92,9 +104,11 @@
 
 <div id="controls">
   <h2>Calendar Settings</h2>
-  <p><em>Supports English & German</em></p>
 
-  <label>Year <input type="number" id="year" value="2025" /></label>
+  <label>
+    Year
+    <input type="number" id="year" value="2025" />
+  </label>
 
   <label>
     Language
@@ -105,22 +119,34 @@
   </label>
 
   <label>
-    Country (holidays)
+    Holidays
     <select id="country">
-      <option value="US">United States</option>
-      <option value="DE">Germany</option>
+      <option value="NONE">No holidays</option>
       <option value="AT">Austria</option>
-      <option value="FR">France</option>
+      <option value="DE">Germany</option>
     </select>
   </label>
 
-  <label>Cover Page Title <input type="text" id="coverTitle" value="My Calendar" /></label>
+  <label>
+    Page width (mm)
+    <input type="number" id="pageWidth" value="210" />
+  </label>
+
+  <label>
+    Page height (mm)
+    <input type="number" id="pageHeight" value="297" />
+  </label>
+
+  <label>
+    Cover Title
+    <input type="text" id="coverTitle" value="My Calendar" />
+  </label>
 
   <hr />
   <h3>Per Month</h3>
   <div id="monthControls"></div>
 
-  <p><strong>Tip:</strong> Press <kbd>Ctrl</kbd> + <kbd>P</kbd> to save as PDF</p>
+  <p><strong>Tip:</strong> Press <kbd>Ctrl</kbd> + <kbd>P</kbd> to export PDF</p>
 </div>
 
 <script>
@@ -137,12 +163,10 @@ const WEEKDAYS = {
   de: ['Mo','Di','Mi','Do','Fr','Sa','So']
 };
 
-let language = 'en';
 let HOLIDAYS = {};
 
-const monthData = Array.from({ length: 12 }, () => ({ text: '', image: null }));
-
 async function fetchHolidays(year, country) {
+  if (country === 'NONE') return [];
   try {
     const res = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`);
     if (!res.ok) throw new Error();
@@ -153,14 +177,17 @@ async function fetchHolidays(year, country) {
   }
 }
 
+let language = 'en';
+let monthData = MONTH_NAMES.en.map(() => ({ text: '', image: null }));
+
 function buildControls() {
   monthControls.innerHTML = '';
   MONTH_NAMES[language].forEach((m, i) => {
     const div = document.createElement('div');
     div.innerHTML = `
       <h4>${m}</h4>
-      <label>Text <input type="text" oninput="updateText(${i}, this.value)" /></label>
-      <label>Background Image <input type="file" accept="image/*" onchange="updateImage(${i}, this.files[0])" /></label>
+      <label>Text<input type="text" oninput="updateText(${i}, this.value)" /></label>
+      <label>Background Image<input type="file" accept="image/*" onchange="updateImage(${i}, this.files[0])" /></label>
     `;
     monthControls.appendChild(div);
   });
@@ -169,20 +196,30 @@ function buildControls() {
 function buildPreview() {
   preview.innerHTML = '';
 
-  const year = +document.getElementById('year').value;
-  language = document.getElementById('language').value;
-  const country = document.getElementById('country').value;
+  const year = +yearInput.value;
+  language = languageSelect.value;
+  const country = countrySelect.value;
+  const width = pageWidth.value + 'mm';
+  const height = pageHeight.value + 'mm';
+
   const holidays = HOLIDAYS[country] || [];
 
   const cover = document.createElement('div');
   cover.className = 'page cover';
-  cover.innerHTML = `<h1>${document.getElementById('coverTitle').value}</h1>`;
+  cover.style.width = width;
+  cover.style.height = height;
+  cover.innerHTML = `<h1>${coverTitle.value}</h1>`;
   preview.appendChild(cover);
 
   MONTH_NAMES[language].forEach((m, i) => {
     const page = document.createElement('div');
     page.className = 'page';
-    if (monthData[i].image) page.style.backgroundImage = `url(${monthData[i].image})`;
+    page.style.width = width;
+    page.style.height = height;
+
+    if (monthData[i].image) {
+      page.style.backgroundImage = `url(${monthData[i].image})`;
+    }
 
     const title = document.createElement('div');
     title.className = 'month-title';
@@ -208,14 +245,14 @@ function buildPreview() {
 
     const firstDay = new Date(year, i, 1);
     const startCol = (firstDay.getDay() + 6) % 7;
-    const prevMonthDays = new Date(year, i, 0).getDate();
+    const prevDays = new Date(year, i, 0).getDate();
 
     let row = document.createElement('tr');
 
     for (let c = 0; c < startCol; c++) {
       const td = document.createElement('td');
-      td.textContent = prevMonthDays - startCol + c + 1;
-      td.className = 'muted';
+      td.textContent = prevDays - startCol + c + 1;
+      td.style.color = '#aaa';
       row.appendChild(td);
     }
 
@@ -225,7 +262,11 @@ function buildPreview() {
       const iso = date.toISOString().split('T')[0];
       const td = document.createElement('td');
       td.textContent = d;
-      if (date.getDay() === 0 || holidays.includes(iso)) td.classList.add('red');
+
+      if (date.getDay() === 0 || holidays.includes(iso)) {
+        td.classList.add('red');
+      }
+
       row.appendChild(td);
       if (row.children.length === 7) {
         table.appendChild(row);
@@ -233,45 +274,53 @@ function buildPreview() {
       }
     }
 
-    let nextDay = 1;
+    let next = 1;
     while (row.children.length < 7) {
       const td = document.createElement('td');
-      td.textContent = nextDay++;
-      td.className = 'muted';
+      td.textContent = next++;
+      td.style.color = '#aaa';
       row.appendChild(td);
     }
     table.appendChild(row);
 
     cal.appendChild(table);
-    page.appendChild(title);
-    page.appendChild(text);
-    page.appendChild(cal);
+    page.append(title, text, cal);
     preview.appendChild(page);
   });
 }
 
-function updateText(i, v) { monthData[i].text = v; buildPreview(); }
-function updateImage(i, f) {
-  if (!f) return;
-  const r = new FileReader();
-  r.onload = e => { monthData[i].image = e.target.result; buildPreview(); };
-  r.readAsDataURL(f);
+function updateText(i, v) {
+  monthData[i].text = v;
+  buildPreview();
 }
 
-['year','coverTitle','country','language'].forEach(id =>
+function updateImage(i, file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    monthData[i].image = e.target.result;
+    buildPreview();
+  };
+  r.readAsDataURL(file);
+}
+
+const yearInput = document.getElementById('year');
+const languageSelect = document.getElementById('language');
+const countrySelect = document.getElementById('country');
+const pageWidth = document.getElementById('pageWidth');
+const pageHeight = document.getElementById('pageHeight');
+const coverTitle = document.getElementById('coverTitle');
+
+['year','language','country','pageWidth','pageHeight','coverTitle'].forEach(id => {
   document.getElementById(id).addEventListener('input', async () => {
-    const year = +document.getElementById('year').value;
-    const country = document.getElementById('country').value;
-    HOLIDAYS[country] = await fetchHolidays(year, country);
+    HOLIDAYS[countrySelect.value] = await fetchHolidays(+yearInput.value, countrySelect.value);
     buildControls();
     buildPreview();
-  })
-);
+  });
+});
 
 (async () => {
-  const year = +document.getElementById('year').value;
-  const country = document.getElementById('country').value;
-  HOLIDAYS[country] = await fetchHolidays(year, country);
+  HOLIDAYS[countrySelect.value] = await fetchHolidays(+yearInput.value, countrySelect.value);
   buildControls();
   buildPreview();
 })();
